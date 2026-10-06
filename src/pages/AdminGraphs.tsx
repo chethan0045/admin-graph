@@ -26,10 +26,12 @@ interface FeatureUsage { modules: string[]; projects: { projectId: number; proje
 interface BarRow { label: string; value: number; }
 interface SliceRow { key: string; label: string; value: number; }
 
-const SINGLE = seriesConfig([{ key: 'value', label: 'Count' }]);
 const barHeight = (rows: number) => Math.max(220, rows * 30 + 40);
-const shorten = (value: string) => (value.length > 18 ? `${value.slice(0, 17)}…` : value);
+const shorten = (value: string) => (value.length > 22 ? `${value.slice(0, 21)}…` : value);
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+const rank = (rows: BarRow[], limit: number) => [...rows].sort((a, b) => b.value - a.value).slice(0, limit);
+const topBadge = (shown: number, total: number) => (shown < total ? `Top ${shown} of ${total}` : undefined);
+const legendClass = 'flex-wrap gap-x-4 gap-y-1 [&>div]:whitespace-nowrap';
 const apiHost = (() => {
   try {
     return new URL(import.meta.env.VITE_API_TARGET || '').host;
@@ -38,16 +40,25 @@ const apiHost = (() => {
   }
 })();
 
-function HorizontalBars({ data, suffix = '' }: { data: BarRow[]; suffix?: string }) {
+function AxisTick({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) {
   return (
-    <ChartContainer config={SINGLE} className="aspect-auto w-full" style={{ height: barHeight(data.length) }}>
-      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 56, top: 4, bottom: 4 }}>
+    <text x={x} y={y} dy={4} textAnchor="end" fontSize={11} className="fill-muted-foreground">
+      {shorten(String(payload?.value ?? ''))}
+    </text>
+  );
+}
+
+function HorizontalBars({ data, valueLabel = 'Count' }: { data: BarRow[]; valueLabel?: string }) {
+  const config = seriesConfig([{ key: 'value', label: valueLabel }]);
+  return (
+    <ChartContainer config={config} className="aspect-auto w-full" style={{ height: barHeight(data.length) }}>
+      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 40, top: 4, bottom: 4 }}>
         <CartesianGrid horizontal={false} strokeDasharray="3 3" />
         <XAxis type="number" hide />
-        <YAxis type="category" dataKey="label" width={140} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} tickFormatter={shorten} />
+        <YAxis type="category" dataKey="label" width={150} interval={0} tickLine={false} axisLine={false} tick={<AxisTick />} />
         <ChartTooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<ChartTooltipContent />} />
         <Bar dataKey="value" fill="var(--color-value)" radius={[0, 4, 4, 0]} barSize={14}>
-          <LabelList dataKey="value" position="right" className="fill-muted-foreground" fontSize={11} formatter={(value: number) => `${value}${suffix}`} />
+          <LabelList dataKey="value" position="right" className="fill-muted-foreground" fontSize={11} />
         </Bar>
       </BarChart>
     </ChartContainer>
@@ -75,13 +86,14 @@ function Donut({ data, centerValue, centerLabel }: { data: SliceRow[]; centerVal
             }}
           />
         </Pie>
-        <ChartLegend content={<ChartLegendContent nameKey="key" />} />
+        <ChartLegend content={<ChartLegendContent nameKey="key" className={legendClass} />} />
       </PieChart>
     </ChartContainer>
   );
 }
 
-function FeatureUsageChart({ data }: { data: FeatureUsage }) {
+function FeatureUsageChart({ data, limit }: { data: FeatureUsage; limit: number }) {
+  const projects = [...data.projects].sort((a, b) => b.total - a.total).slice(0, limit);
   const ordered = data.modules
     .map((module, index) => ({ module, index, total: data.totals[index] || 0 }))
     .sort((a, b) => b.total - a.total);
@@ -92,7 +104,7 @@ function FeatureUsageChart({ data }: { data: FeatureUsage }) {
     ...(rest.length ? [{ key: 'other', label: 'Other' }] : [])
   ];
   const config = seriesConfig(keys);
-  const rows = data.projects.map((project) => {
+  const rows = projects.map((project) => {
     const row: Record<string, string | number> = { label: project.projectName };
     kept.forEach((entry) => { row[`m${entry.index}`] = project.counts[entry.index] || 0; });
     if (rest.length) row.other = rest.reduce((sum, entry) => sum + (project.counts[entry.index] || 0), 0);
@@ -103,9 +115,9 @@ function FeatureUsageChart({ data }: { data: FeatureUsage }) {
       <BarChart data={rows} layout="vertical" margin={{ left: 8, right: 24, top: 4, bottom: 4 }}>
         <CartesianGrid horizontal={false} strokeDasharray="3 3" />
         <XAxis type="number" hide />
-        <YAxis type="category" dataKey="label" width={140} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} tickFormatter={shorten} />
+        <YAxis type="category" dataKey="label" width={150} interval={0} tickLine={false} axisLine={false} tick={<AxisTick />} />
         <ChartTooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<ChartTooltipContent />} />
-        <ChartLegend content={<ChartLegendContent />} />
+        <ChartLegend verticalAlign="top" content={<ChartLegendContent className={legendClass} />} />
         {keys.map((entry, index) => (
           <Bar
             key={entry.key}
@@ -115,7 +127,7 @@ function FeatureUsageChart({ data }: { data: FeatureUsage }) {
             stroke="hsl(var(--card))"
             strokeWidth={2}
             radius={index === keys.length - 1 ? [0, 4, 4, 0] : 0}
-            barSize={16}
+            barSize={14}
           />
         ))}
       </BarChart>
@@ -182,9 +194,11 @@ const AdminGraphs = () => {
   const featureUsage = useAdminGraph<FeatureUsage>('feature-usage-by-project', base);
 
   const usersByProject = useMemo<BarRow[]>(
-    () => (userCount.data?.projects || []).map((row) => ({ label: row._id, value: row.count })),
+    () => rank((userCount.data?.projects || []).map((row) => ({ label: row._id, value: row.count })), Infinity),
     [userCount.data]
   );
+  const usersByProjectTop = useMemo(() => rank(usersByProject, 20), [usersByProject]);
+  const featureProjects = featureUsage.data?.projects?.length || 0;
   const typeRows = useMemo<SliceRow[]>(
     () => (usersByType.data?.breakdown || []).map((row) => ({ key: slug(row._id), label: row._id, value: row.count })),
     [usersByType.data]
@@ -280,16 +294,17 @@ const AdminGraphs = () => {
               <KpiTile icon={UsersRound} label="Teams" value={teams.data?.length ?? '–'} />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
               <ChartCard
                 title="Users by Project"
-                info="Number of active users assigned to each project."
+                info="Active users assigned to each project, highest first. The table lists every project."
+                badge={topBadge(usersByProjectTop.length, usersByProject.length)}
                 loading={userCount.isLoading}
                 error={userCount.error?.message}
                 empty={!usersByProject.length}
                 table={{ columns: ['Project', 'Users'], rows: usersByProject.map((row) => [row.label, row.value]) }}
               >
-                <HorizontalBars data={usersByProject} suffix=" users" />
+                <HorizontalBars data={usersByProjectTop} valueLabel="Users" />
               </ChartCard>
 
               <ChartCard
@@ -312,7 +327,7 @@ const AdminGraphs = () => {
                 empty={!loginRows.length}
                 table={{ columns: ['User', 'Days since login'], rows: loginUsers.map((user) => [user.label, user.days ?? 'Never']) }}
               >
-                <HorizontalBars data={loginRows} suffix=" d" />
+                <HorizontalBars data={loginRows} valueLabel="Days since login" />
               </ChartCard>
 
               <ChartCard
@@ -324,7 +339,7 @@ const AdminGraphs = () => {
                 controls={<ProjectSelect value={execProjectId} onChange={setExecProjectId} />}
                 table={{ columns: ['User', 'Days since execution'], rows: execRows.map((row) => [row.label, row.value]) }}
               >
-                <HorizontalBars data={execRows} suffix=" d" />
+                <HorizontalBars data={execRows} valueLabel="Days since execution" />
               </ChartCard>
 
               <ChartCard
@@ -336,7 +351,7 @@ const AdminGraphs = () => {
                 controls={<ProjectSelect value={rolesProjectId} onChange={setRolesProjectId} />}
                 table={{ columns: ['Role', 'Users', 'Members'], rows: (roles.data || []).map((row) => [row._id, row.count, row.users.join(', ')]) }}
               >
-                <HorizontalBars data={roleRows} />
+                <HorizontalBars data={roleRows} valueLabel="Users" />
               </ChartCard>
 
               <ChartCard
@@ -348,7 +363,7 @@ const AdminGraphs = () => {
                 controls={<ProjectSelect value={fieldsProjectId} onChange={setFieldsProjectId} />}
                 table={{ columns: ['Module', 'Custom fields'], rows: fieldRows.map((row) => [row.label, row.value]) }}
               >
-                <HorizontalBars data={fieldRows} />
+                <HorizontalBars data={fieldRows} valueLabel="Custom fields" />
               </ChartCard>
 
               <ChartCard
@@ -375,7 +390,8 @@ const AdminGraphs = () => {
 
               <ChartCard
                 title="Feature Usage by Project"
-                info="Items created or run per module in each project. Modules beyond the top seven are grouped as Other."
+                info="Items created or run per module, for the projects with the most activity. Modules beyond the top seven are grouped as Other. The table lists every project."
+                badge={topBadge(Math.min(15, featureProjects), featureProjects)}
                 loading={featureUsage.isLoading}
                 error={featureUsage.error?.message}
                 empty={!featureUsage.data?.projects?.length}
@@ -385,7 +401,7 @@ const AdminGraphs = () => {
                   rows: (featureUsage.data?.projects || []).map((project) => [project.projectName, ...project.counts, project.total])
                 }}
               >
-                {featureUsage.data && <FeatureUsageChart data={featureUsage.data} />}
+                {featureUsage.data && <FeatureUsageChart data={featureUsage.data} limit={15} />}
               </ChartCard>
             </div>
           </>

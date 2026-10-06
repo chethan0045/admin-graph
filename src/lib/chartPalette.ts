@@ -13,10 +13,12 @@ export const SERIES_THEMES = [
 
 export const MAX_SERIES = SERIES_THEMES.length;
 
+const OTHER_THEME = { light: '#8a8a8a', dark: '#9a9a9a' };
+
 export function seriesConfig(keys: { key: string; label: string }[]): ChartConfig {
   const config: ChartConfig = {};
   keys.slice(0, MAX_SERIES).forEach((entry, index) => {
-    config[entry.key] = { label: entry.label, theme: SERIES_THEMES[index] };
+    config[entry.key] = { label: entry.label, theme: entry.key === 'other' ? OTHER_THEME : SERIES_THEMES[index] };
   });
   return config;
 }
