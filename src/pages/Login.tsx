@@ -4,34 +4,45 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart3, Loader2 } from 'lucide-react';
-import { ApiError, login, verifyEmail } from '@/services/api';
+import { cn } from '@/lib/utils';
+import { ApiError, CustomerSession, Mode, customerName, getOwnCustomer, login, superAdminLogin, verifyEmail, verifySuperAdminEmail } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
+
+const describe = (err: unknown) => (err instanceof ApiError || err instanceof Error ? err.message : 'Request failed');
 
 const Login = () => {
   const navigate = useNavigate();
   const { signIn } = useAuth();
+  const [mode, setMode] = useState<Mode>('user');
   const [step, setStep] = useState<'email' | 'password'>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginToken, setLoginToken] = useState('');
   const [companies, setCompanies] = useState<{ id: number; companyName: string }[]>([]);
-  const [companyName, setCompanyName] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const describe = (err: unknown) => (err instanceof ApiError || err instanceof Error ? err.message : 'Request failed');
+  const reset = () => {
+    setStep('email');
+    setPassword('');
+    setCompanies([]);
+    setError(null);
+  };
 
   const submitEmail = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const response = await verifyEmail(email.trim());
-      setLoginToken(response.token);
-      setCompanies(response.companies || []);
-      setCompanyName(response.companies?.length === 1 ? response.companies[0].companyName : undefined);
+      if (mode === 'user') {
+        const response = await verifyEmail(email.trim());
+        setLoginToken(response.token);
+        setCompanies(response.companies || []);
+      } else {
+        const response = await verifySuperAdminEmail(email.trim());
+        setLoginToken(response.token);
+      }
       setStep('password');
     } catch (err) {
       setError(describe(err));
@@ -40,13 +51,35 @@ const Login = () => {
     }
   };
 
+  const signInAsUser = async () => {
+    const targets = companies.length ? companies.map((company) => company.companyName) : [undefined];
+    const sessions: CustomerSession[] = [];
+    const failures: string[] = [];
+    for (const companyName of targets) {
+      try {
+        const response = await login(email.trim(), password, companyName, loginToken);
+        const name = companyName ?? customerName(await getOwnCustomer(response.accessToken));
+        sessions.push({ customerId: response.customerId, name, token: response.accessToken });
+      } catch (err) {
+        failures.push(`${companyName ?? 'account'}: ${describe(err)}`);
+      }
+    }
+    if (!sessions.length) throw new Error(failures[0] || 'Sign in failed');
+    signIn({ mode: 'user', sessions, activeCustomerId: sessions[0].customerId });
+  };
+
+  const signInAsSuperAdmin = async () => {
+    const response = await superAdminLogin(email.trim(), password, loginToken);
+    signIn({ mode: 'super-admin', token: response.accessToken, sessions: [], activeCustomerId: null });
+  };
+
   const submitPassword = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const response = await login(email.trim(), password, companyName, loginToken);
-      signIn(response.accessToken);
+      if (mode === 'user') await signInAsUser();
+      else await signInAsSuperAdmin();
       navigate('/', { replace: true });
     } catch (err) {
       setError(describe(err));
@@ -63,7 +96,24 @@ const Login = () => {
             <BarChart3 className="w-5 h-5 text-primary-foreground" />
           </div>
           <CardTitle className="text-xl">Admin Graphs</CardTitle>
-          <p className="text-sm text-muted-foreground">Sign in with your SimplifyQA account.</p>
+          <div className="flex rounded-md border border-border p-1 text-xs">
+            {(['user', 'super-admin'] as Mode[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                disabled={busy}
+                onClick={() => { setMode(option); reset(); }}
+                className={cn('flex-1 rounded px-2 py-1.5 font-medium transition-colors', mode === option ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
+              >
+                {option === 'user' ? 'SimplifyQA user' : 'Super admin'}
+              </button>
+            ))}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {mode === 'user'
+              ? 'Graphs for every customer your account belongs to.'
+              : 'Graphs for any customer, using your license-management login.'}
+          </p>
         </CardHeader>
         <CardContent>
           {step === 'email' ? (
@@ -84,17 +134,9 @@ const Login = () => {
                 <Input value={email} disabled />
               </div>
               {companies.length > 1 && (
-                <div className="space-y-2">
-                  <Label>Company</Label>
-                  <Select value={companyName} onValueChange={setCompanyName}>
-                    <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
-                    <SelectContent>
-                      {companies.map((company) => (
-                        <SelectItem key={company.id} value={company.companyName}>{company.companyName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  This email belongs to {companies.length} customers. You will be signed in to each of them and can switch between them on the graphs page.
+                </p>
               )}
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -102,8 +144,8 @@ const Login = () => {
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <div className="flex gap-2">
-                <Button type="button" variant="outline" className="flex-1" disabled={busy} onClick={() => { setStep('email'); setPassword(''); setError(null); }}>Back</Button>
-                <Button type="submit" className="flex-1" disabled={busy || (companies.length > 1 && !companyName)}>
+                <Button type="button" variant="outline" className="flex-1" disabled={busy} onClick={reset}>Back</Button>
+                <Button type="submit" className="flex-1" disabled={busy}>
                   {busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Sign in
                 </Button>
               </div>

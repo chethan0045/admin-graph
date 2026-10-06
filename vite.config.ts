@@ -15,6 +15,6 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     resolve: { alias: { '@': path.resolve(__dirname, './src') } },
-    server: { port: 4201, proxy: { '/pm': proxy, '/dashboard': proxy } }
+    server: { port: 4201, proxy: { '/pm': proxy, '/lm': proxy, '/dashboard': proxy } }
   };
 });

@@ -17,6 +17,7 @@ export type AdminGraph =
   | 'activity-explorer';
 
 export interface AdminGraphPayload {
+  customerId?: number;
   projectId?: number;
   projectIds?: number[];
   filters?: {
@@ -25,10 +26,10 @@ export interface AdminGraphPayload {
   };
 }
 
-export function useAdminGraph<T>(graph: AdminGraph, payload: AdminGraphPayload | null) {
+export function useAdminGraph<T>(graph: AdminGraph, payload: AdminGraphPayload | null, token: string | null) {
   return useQuery<T>({
-    queryKey: ['admin-graph', graph, payload],
-    queryFn: () => adminGraph<T>(graph, payload as AdminGraphPayload),
-    enabled: !!payload
+    queryKey: ['admin-graph', graph, payload, token],
+    queryFn: () => adminGraph<T>(graph, payload as AdminGraphPayload, token as string),
+    enabled: !!payload && !!token
   });
 }

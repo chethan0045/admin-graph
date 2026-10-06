@@ -11,13 +11,13 @@ const queryClient = new QueryClient({
 });
 
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { token } = useAuth();
-  return token ? <>{children}</> : <Navigate to="/login" replace />;
+  const { auth } = useAuth();
+  return auth ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
 function PublicOnly({ children }: { children: ReactNode }) {
-  const { token } = useAuth();
-  return token ? <Navigate to="/" replace /> : <>{children}</>;
+  const { auth } = useAuth();
+  return auth ? <Navigate to="/" replace /> : <>{children}</>;
 }
 
 const App = () => (

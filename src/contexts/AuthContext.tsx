@@ -1,25 +1,32 @@
 import { createContext, ReactNode, useContext, useState } from 'react';
-import { getToken, setToken } from '@/services/api';
+import { AuthState, loadAuth, saveAuth } from '@/services/api';
 
 interface AuthValue {
-  token: string | null;
-  signIn: (token: string) => void;
+  auth: AuthState | null;
+  signIn: (state: AuthState) => void;
   signOut: () => void;
+  setActiveCustomer: (customerId: number) => void;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setTokenState] = useState<string | null>(getToken());
-  const signIn = (value: string) => {
-    setToken(value);
-    setTokenState(value);
+  const [auth, setAuth] = useState<AuthState | null>(loadAuth());
+
+  const update = (state: AuthState | null) => {
+    saveAuth(state);
+    setAuth(state);
   };
-  const signOut = () => {
-    setToken(null);
-    setTokenState(null);
+
+  const setActiveCustomer = (customerId: number) => {
+    if (auth) update({ ...auth, activeCustomerId: customerId });
   };
-  return <AuthContext.Provider value={{ token, signIn, signOut }}>{children}</AuthContext.Provider>;
+
+  return (
+    <AuthContext.Provider value={{ auth, signIn: update, signOut: () => update(null), setActiveCustomer }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

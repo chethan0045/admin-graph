@@ -1,10 +1,33 @@
-const TOKEN_KEY = 'adminGraphs.accessToken';
+const AUTH_KEY = 'adminGraphs.auth';
+const LM_ENV = import.meta.env.VITE_LM_ENV || 'QA';
 
-export const getToken = () => localStorage.getItem(TOKEN_KEY);
+export type Mode = 'user' | 'super-admin';
 
-export const setToken = (token: string | null) => {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+export interface CustomerSession {
+  customerId: number;
+  name: string;
+  token: string;
+}
+
+export interface AuthState {
+  mode: Mode;
+  token?: string;
+  sessions: CustomerSession[];
+  activeCustomerId: number | null;
+}
+
+export const loadAuth = (): AuthState | null => {
+  try {
+    const raw = localStorage.getItem(AUTH_KEY);
+    return raw ? (JSON.parse(raw) as AuthState) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const saveAuth = (state: AuthState | null) => {
+  if (state) localStorage.setItem(AUTH_KEY, JSON.stringify(state));
+  else localStorage.removeItem(AUTH_KEY);
 };
 
 export class ApiError extends Error {
@@ -15,11 +38,22 @@ export class ApiError extends Error {
   }
 }
 
-async function post<T>(url: string, body: unknown, headers: Record<string, string> = {}): Promise<T> {
+interface RequestOptions {
+  method?: 'GET' | 'POST';
+  body?: unknown;
+  authorization?: string;
+  env?: boolean;
+}
+
+async function request<T>(url: string, { method = 'POST', body, authorization, env }: RequestOptions = {}): Promise<T> {
   const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify(body)
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authorization ? { Authorization: authorization } : {}),
+      ...(env ? { env: LM_ENV } : {})
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new ApiError(data.message || `Request failed (${response.status})`, response.status);
@@ -38,14 +72,33 @@ export interface LoginResponse {
   refreshToken: string;
 }
 
+export interface Customer {
+  id: number;
+  companyName?: string;
+  cust_name?: string;
+}
+
+export const customerName = (customer: Customer) => customer.cust_name || customer.companyName || `Customer ${customer.id}`;
+
 export const verifyEmail = (email: string) =>
-  post<EmailVerifyResponse>('/pm/auth/email', { email, type: 'web' });
+  request<EmailVerifyResponse>('/pm/auth/email', { body: { email, type: 'web' } });
 
 export const login = (email: string, password: string, companyName: string | undefined, token: string) =>
-  post<LoginResponse>('/pm/auth/login', { email, password, companyName, type: 'web' }, { Authorization: token });
+  request<LoginResponse>('/pm/auth/login', { body: { email, password, companyName, type: 'web' }, authorization: token });
 
-export const adminGraph = async <T>(graph: string, payload: object): Promise<T> => {
-  const token = getToken();
-  const data = await post<{ success: boolean; data: T }>(`/dashboard/admin/${graph}`, payload, token ? { Authorization: `Bearer ${token}` } : {});
+export const getOwnCustomer = (token: string) =>
+  request<Customer>('/pm/customer/0', { method: 'GET', authorization: `Bearer ${token}` });
+
+export const verifySuperAdminEmail = (email: string) =>
+  request<{ token: string }>('/lm/auth/email', { body: { email } });
+
+export const superAdminLogin = (email: string, password: string, token: string) =>
+  request<{ accessToken: string }>('/lm/auth/login', { body: { email, password }, authorization: `Bearer ${token}` });
+
+export const listCustomers = (token: string) =>
+  request<Customer[]>('/lm/customer', { method: 'GET', authorization: `Bearer ${token}`, env: true });
+
+export const adminGraph = async <T>(graph: string, payload: object, token: string): Promise<T> => {
+  const data = await request<{ success: boolean; data: T }>(`/dashboard/admin/${graph}`, { body: payload, authorization: `Bearer ${token}` });
   return data.data;
 };
