@@ -36,12 +36,13 @@ sign-in shows "Not authorised" for the graphs.
 `VITE_LM_ENV` in `.env` is the environment name sent to license-management
 (`QA`, `UAT` or `PROD`).
 
-## UI-only prototype
+## License Management shell clone
 
-`/prototype` is a clone of the License Management shell (header, sidebar,
-welcome page) with an **Admin Graphs** section rendered from static demo data
-in `src/data/demoGraphs.ts`. It makes no network calls and needs no login,
-so it can be used to review the layout and charts on their own.
+`/prototype` is a clone of the License Management (super-admin) shell: header,
+sidebar and welcome page. Its **Admin Graphs** section is the same live page as
+`/`, so it shows actual data from the configured environment for the selected
+customer, and asks you to sign in when there is no session. Customer
+Management and Package Builder are placeholders.
 
 ## Build
 

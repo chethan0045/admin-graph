@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from 'react-router-dom';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import Login from '@/pages/Login';
@@ -18,7 +18,9 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
 function PublicOnly({ children }: { children: ReactNode }) {
   const { auth } = useAuth();
-  return auth ? <Navigate to="/" replace /> : <>{children}</>;
+  const [params] = useSearchParams();
+  const next = params.get('next');
+  return auth ? <Navigate to={next && next.startsWith('/') ? next : '/'} replace /> : <>{children}</>;
 }
 
 const App = () => (

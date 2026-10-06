@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,9 @@ const describe = (err: unknown) => (err instanceof ApiError || err instanceof Er
 
 const Login = () => {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = params.get('next');
+  const target = next && next.startsWith('/') ? next : '/';
   const { signIn } = useAuth();
   const [mode, setMode] = useState<Mode>('user');
   const [step, setStep] = useState<'email' | 'password'>('email');
@@ -80,7 +83,7 @@ const Login = () => {
     try {
       if (mode === 'user') await signInAsUser();
       else await signInAsSuperAdmin();
-      navigate('/', { replace: true });
+      navigate(target, { replace: true });
     } catch (err) {
       setError(describe(err));
     } finally {
