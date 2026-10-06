@@ -8,9 +8,3 @@ export interface AutoLogging { autoLogging: number; total: number; details: { na
 export interface Team { _id: string; teamId: number; members: { userId: number; name: string; email: string }[]; }
 export interface LastExecution { _id: number; createdAt: string; createdByName: string; code: string; executionTypeCode: string; result: string; }
 export interface FeatureUsage { modules: string[]; projects: { projectId: number; projectName: string; counts: number[]; total: number; modulesUsed: number }[]; totals: number[]; }
-
-export interface GraphData<T> {
-  data?: T;
-  isLoading?: boolean;
-  error?: string | null;
-}

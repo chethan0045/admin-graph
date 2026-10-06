@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useQuery, UseQueryResult } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,7 +9,8 @@ import { ApiError, customerName, listCustomers } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminGraphsGrid } from '@/components/AdminGraphsGrid';
 import { AdminGraphPayload, useAdminGraph } from '@/hooks/useAdminGraph';
-import type { AutoLogging, CountRow, FeatureUsage, GraphData, LastExecution, Project, RoleRow, Team, UserCountByProject, UserLogin, UsersByType } from '@/types/adminGraphs';
+import type { GraphRequest } from '@/graphs/types';
+import type { Project } from '@/types/adminGraphs';
 
 export const apiHost = (() => {
   try {
@@ -18,8 +19,6 @@ export const apiHost = (() => {
     return '';
   }
 })();
-
-const toGraph = <T,>(query: UseQueryResult<T>): GraphData<T> => ({ data: query.data, isLoading: query.isLoading, error: query.error?.message });
 
 const Notice = ({ text, tone = 'muted' }: { text: string; tone?: 'muted' | 'error' }) => (
   <Card className="bg-card border border-border shadow-sm">
@@ -67,10 +66,6 @@ function SignedInGraphs() {
     if (customers.length && !customers.some((customer) => customer.id === customerId)) setActiveCustomer(customers[0].id);
   }, [customers, customerId]);
 
-  const [rolesProjectId, setRolesProjectId] = useState<number | null>(null);
-  const [fieldsProjectId, setFieldsProjectId] = useState<number | null>(null);
-  const [execProjectId, setExecProjectId] = useState<number | null>(null);
-
   const projectsQuery = useAdminGraph<Project[]>('all-customer-projects', withCustomer({}), token);
   const projects = useMemo(() => (projectsQuery.data || []).filter((project) => typeof project.id === 'number'), [projectsQuery.data]);
 
@@ -82,28 +77,15 @@ function SignedInGraphs() {
     }
   }, [projectsQuery.error, customersQuery.error]);
 
-  useEffect(() => {
-    setRolesProjectId(null);
-    setFieldsProjectId(null);
-    setExecProjectId(null);
-  }, [projects]);
-
-  const base: AdminGraphPayload | null = useMemo(
-    () => (projects.length ? withCustomer({ projectIds: projects.map((project) => project.id), filters: {} }) : null),
-    [projects, isSuperAdmin, customerId]
-  );
-  const scoped = (projectId: number | null): AdminGraphPayload | null =>
-    (base && projectId ? { ...base, filters: { selectedProjectId: projectId } } : base);
-
-  const userCount = useAdminGraph<UserCountByProject>('user-count-by-project', base, token);
-  const usersByType = useAdminGraph<UsersByType>('users-by-type', base, token);
-  const lastLogin = useAdminGraph<UserLogin[]>('users-last-login', base, token);
-  const roles = useAdminGraph<RoleRow[]>('roles-in-project', scoped(rolesProjectId), token);
-  const customFields = useAdminGraph<CountRow[]>('custom-fields-by-module', scoped(fieldsProjectId), token);
-  const autoLogging = useAdminGraph<AutoLogging[]>('auto-logging-percentage', base, token);
-  const teams = useAdminGraph<Team[]>('teams-user-list', base, token);
-  const lastExecution = useAdminGraph<LastExecution[]>('users-last-execution', scoped(execProjectId), token);
-  const featureUsage = useAdminGraph<FeatureUsage>('feature-usage-by-project', base, token);
+  const request = useMemo<GraphRequest>(() => {
+    const base = projects.length ? withCustomer({ projectIds: projects.map((project) => project.id), filters: {} }) : null;
+    return {
+      token,
+      projects,
+      base,
+      scoped: (projectId) => (base && projectId ? { ...base, filters: { selectedProjectId: projectId } } : base)
+    };
+  }, [projects, token, isSuperAdmin, customerId]);
 
   let body: JSX.Element;
   if (isSuperAdmin && customersQuery.isError) body = <Notice tone="error" text={`Could not load customers: ${customersQuery.error.message}`} />;
@@ -112,28 +94,7 @@ function SignedInGraphs() {
   else if (projectsQuery.isError) body = <Notice tone="error" text={`Could not load projects: ${projectsQuery.error.message}`} />;
   else if (projectsQuery.isLoading) body = <Notice text="Loading projects…" />;
   else if (projects.length === 0) body = <Notice text="This account has no projects yet." />;
-  else {
-    body = (
-      <AdminGraphsGrid
-        projects={projects}
-        userCount={toGraph(userCount)}
-        usersByType={toGraph(usersByType)}
-        lastLogin={toGraph(lastLogin)}
-        lastExecution={toGraph(lastExecution)}
-        roles={toGraph(roles)}
-        customFields={toGraph(customFields)}
-        autoLogging={toGraph(autoLogging)}
-        teams={toGraph(teams)}
-        featureUsage={toGraph(featureUsage)}
-        rolesProjectId={rolesProjectId}
-        fieldsProjectId={fieldsProjectId}
-        execProjectId={execProjectId}
-        onRolesProject={setRolesProjectId}
-        onFieldsProject={setFieldsProjectId}
-        onExecProject={setExecProjectId}
-      />
-    );
-  }
+  else body = <AdminGraphsGrid request={request} />;
 
   return (
     <>

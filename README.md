@@ -53,11 +53,24 @@ npm run build
 Serve `dist/` from the same host that exposes `/pm` and `/dashboard`
 (the app calls both with relative URLs).
 
-## Layout
+## Layout: one file per graph
 
-- `src/pages/Login.tsx` – email verification, then password login (`/pm/auth/email`, `/pm/auth/login`)
-- `src/pages/AdminGraphs.tsx` – KPI tiles and nine charts
-- `src/hooks/useAdminGraph.ts` – one react-query call per graph
-- `src/components/ChartCard.tsx` – card with info tooltip, loading, empty, error and table view
-- `src/lib/chartPalette.ts` – validated categorical palette for light and dark themes
-- `src/components/ui/*` – shadcn primitives (button, card, select, tooltip, table, chart, …)
+Every graph is self-contained in `src/graphs/<Name>.tsx`: it calls its own
+dashboard endpoint with `useAdminGraph`, transforms the rows, and renders a
+`ChartCard`. It exports a `GraphDefinition` (`id`, `title`, `Card`).
+`src/graphs/index.ts` lists the definitions in display order, and
+`src/components/AdminGraphsGrid.tsx` renders whatever is in that list.
+
+- Change a graph: edit only its file in `src/graphs/`.
+- Add a graph: create `src/graphs/<Name>.tsx`, add its endpoint name to the
+  `AdminGraph` union in `src/hooks/useAdminGraph.ts`, add its response shape to
+  `src/types/adminGraphs.ts`, and append the definition to `src/graphs/index.ts`.
+- Reorder or hide graphs: edit the array in `src/graphs/index.ts`.
+- Shared pieces, owned by one person: `ChartCard.tsx`, `charts.tsx`
+  (bar, donut, stacked bar, KPI tile, ranking helpers), `chartPalette.ts`,
+  `graphs/ProjectSelect.tsx`, `LiveAdminGraphs.tsx` (auth, customer
+  dropdown, project list, payload) and the login/auth files.
+
+Each graph receives a `GraphRequest`: the session `token`, the customer's
+`projects`, the `base` payload (all project ids and, for super admins, the
+customer id) and `scoped(projectId)` for a single-project payload.
