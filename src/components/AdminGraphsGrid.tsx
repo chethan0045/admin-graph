@@ -20,9 +20,9 @@ export interface AdminGraphsGridProps {
   rolesProjectId: number | null;
   fieldsProjectId: number | null;
   execProjectId: number | null;
-  onRolesProject: (id: number) => void;
-  onFieldsProject: (id: number) => void;
-  onExecProject: (id: number) => void;
+  onRolesProject: (id: number | null) => void;
+  onFieldsProject: (id: number | null) => void;
+  onExecProject: (id: number | null) => void;
 }
 
 export function AdminGraphsGrid(props: AdminGraphsGridProps) {
@@ -73,10 +73,11 @@ export function AdminGraphsGrid(props: AdminGraphsGridProps) {
     [lastExecution.data]
   );
 
-  const ProjectSelect = ({ value, onChange }: { value: number | null; onChange: (id: number) => void }) => (
-    <Select value={value ? String(value) : undefined} onValueChange={(selected) => onChange(Number(selected))}>
-      <SelectTrigger className="h-7 w-[170px] text-xs"><SelectValue placeholder="Select project" /></SelectTrigger>
+  const ProjectSelect = ({ value, onChange }: { value: number | null; onChange: (id: number | null) => void }) => (
+    <Select value={value ? String(value) : 'all'} onValueChange={(selected) => onChange(selected === 'all' ? null : Number(selected))}>
+      <SelectTrigger className="h-7 w-[170px] text-xs"><SelectValue placeholder="All projects" /></SelectTrigger>
       <SelectContent>
+        <SelectItem value="all" className="text-xs">All projects</SelectItem>
         {projects.map((project) => (
           <SelectItem key={project.id} value={String(project.id)} className="text-xs">{project.name}</SelectItem>
         ))}
@@ -130,7 +131,7 @@ export function AdminGraphsGrid(props: AdminGraphsGridProps) {
 
         <ChartCard
           title="Days Since Last Execution"
-          info="Users by days since the last execution they ran in the selected project."
+          info="Users by days since the last completed execution they ran, across all projects or in the selected one."
           loading={lastExecution.isLoading}
           error={lastExecution.error}
           empty={!execRows.length}
@@ -142,7 +143,7 @@ export function AdminGraphsGrid(props: AdminGraphsGridProps) {
 
         <ChartCard
           title="Roles in Project"
-          info="Users per role in the selected project."
+          info="Users per role, across all projects or in the selected one."
           loading={roles.isLoading}
           error={roles.error}
           empty={!roleRows.length}
@@ -154,7 +155,7 @@ export function AdminGraphsGrid(props: AdminGraphsGridProps) {
 
         <ChartCard
           title="Custom Fields by Module"
-          info="Custom fields configured per module in the selected project."
+          info="Custom fields configured per module, across all projects or in the selected one."
           loading={customFields.isLoading}
           error={customFields.error}
           empty={!fieldRows.length}

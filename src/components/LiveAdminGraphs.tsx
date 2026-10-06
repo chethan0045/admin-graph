@@ -83,10 +83,9 @@ function SignedInGraphs() {
   }, [projectsQuery.error, customersQuery.error]);
 
   useEffect(() => {
-    const first = projects[0]?.id ?? null;
-    setRolesProjectId(first);
-    setFieldsProjectId(first);
-    setExecProjectId(first);
+    setRolesProjectId(null);
+    setFieldsProjectId(null);
+    setExecProjectId(null);
   }, [projects]);
 
   const base: AdminGraphPayload | null = useMemo(
@@ -94,7 +93,7 @@ function SignedInGraphs() {
     [projects, isSuperAdmin, customerId]
   );
   const scoped = (projectId: number | null): AdminGraphPayload | null =>
-    (base && projectId ? { ...base, filters: { selectedProjectId: projectId } } : null);
+    (base && projectId ? { ...base, filters: { selectedProjectId: projectId } } : base);
 
   const userCount = useAdminGraph<UserCountByProject>('user-count-by-project', base, token);
   const usersByType = useAdminGraph<UsersByType>('users-by-type', base, token);
