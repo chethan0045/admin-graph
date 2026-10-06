@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import Login from '@/pages/Login';
 import AdminGraphs from '@/pages/AdminGraphs';
+import SuperAdminShell from '@/pages/prototype/SuperAdminShell';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } }
@@ -28,6 +29,7 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
             <Route path="/" element={<RequireAuth><AdminGraphs /></RequireAuth>} />
+            <Route path="/prototype/*" element={<SuperAdminShell />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

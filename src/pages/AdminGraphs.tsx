@@ -1,38 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Bar, BarChart, CartesianGrid, Label, LabelList, Pie, PieChart, XAxis, YAxis } from 'recharts';
+import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { BarChart3, Building2, FolderKanban, LogOut, Users, UsersRound } from 'lucide-react';
+import { BarChart3, Building2, LogOut } from 'lucide-react';
 import { ApiError, customerName, listCustomers } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { ChartCard } from '@/components/ChartCard';
+import { AdminGraphsGrid } from '@/components/AdminGraphsGrid';
 import { AdminGraphPayload, useAdminGraph } from '@/hooks/useAdminGraph';
-import { MAX_SERIES, daysSince, seriesConfig } from '@/lib/chartPalette';
+import type { AutoLogging, CountRow, FeatureUsage, GraphData, LastExecution, Project, RoleRow, Team, UserCountByProject, UserLogin, UsersByType } from '@/types/adminGraphs';
 
-interface Project { id: number; name: string; }
-interface UserCountByProject { projects: { _id: string; count: number }[]; totalActiveUsers: number; totalProjects: number; }
-interface UsersByType { breakdown: { _id: string; count: number }[]; totalUsers: number; details: { name: string; type: string }[]; }
-interface UserLogin { id: number; name: string; email: string; lastLoginAt: string | null; }
-interface RoleRow { _id: string; count: number; users: string[]; }
-interface CountRow { _id: string; count: number; }
-interface AutoLogging { autoLogging: number; total: number; details: { name: string; mode: string }[]; }
-interface Team { _id: string; teamId: number; members: { userId: number; name: string; email: string }[]; }
-interface LastExecution { _id: number; createdAt: string; createdByName: string; code: string; executionTypeCode: string; result: string; }
-interface FeatureUsage { modules: string[]; projects: { projectId: number; projectName: string; counts: number[]; total: number; modulesUsed: number }[]; totals: number[]; }
-
-interface BarRow { label: string; value: number; }
-interface SliceRow { key: string; label: string; value: number; }
-
-const barHeight = (rows: number) => Math.max(220, rows * 30 + 40);
-const shorten = (value: string) => (value.length > 22 ? `${value.slice(0, 21)}…` : value);
-const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-const rank = (rows: BarRow[], limit: number) => [...rows].sort((a, b) => b.value - a.value).slice(0, limit);
-const topBadge = (shown: number, total: number) => (shown < total ? `Top ${shown} of ${total}` : undefined);
-const legendClass = 'flex-wrap gap-x-4 gap-y-1 [&>div]:whitespace-nowrap';
 const apiHost = (() => {
   try {
     return new URL(import.meta.env.VITE_API_TARGET || '').host;
@@ -41,116 +19,13 @@ const apiHost = (() => {
   }
 })();
 
-function AxisTick({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) {
-  return (
-    <text x={x} y={y} dy={4} textAnchor="end" fontSize={11} className="fill-muted-foreground">
-      {shorten(String(payload?.value ?? ''))}
-    </text>
-  );
-}
+const toGraph = <T,>(query: UseQueryResult<T>): GraphData<T> => ({ data: query.data, isLoading: query.isLoading, error: query.error?.message });
 
-function HorizontalBars({ data, valueLabel = 'Count' }: { data: BarRow[]; valueLabel?: string }) {
-  const config = seriesConfig([{ key: 'value', label: valueLabel }]);
-  return (
-    <ChartContainer config={config} className="aspect-auto w-full" style={{ height: barHeight(data.length) }}>
-      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 40, top: 4, bottom: 4 }}>
-        <CartesianGrid horizontal={false} strokeDasharray="3 3" />
-        <XAxis type="number" hide />
-        <YAxis type="category" dataKey="label" width={150} interval={0} tickLine={false} axisLine={false} tick={<AxisTick />} />
-        <ChartTooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<ChartTooltipContent />} />
-        <Bar dataKey="value" fill="var(--color-value)" radius={[0, 4, 4, 0]} barSize={14}>
-          <LabelList dataKey="value" position="right" className="fill-muted-foreground" fontSize={11} />
-        </Bar>
-      </BarChart>
-    </ChartContainer>
-  );
-}
-
-function Donut({ data, centerValue, centerLabel }: { data: SliceRow[]; centerValue: string | number; centerLabel: string }) {
-  const config = seriesConfig(data.map((row) => ({ key: row.key, label: row.label })));
-  const rows = data.map((row) => ({ ...row, fill: `var(--color-${row.key})` }));
-  return (
-    <ChartContainer config={config} className="aspect-auto w-full h-[260px]">
-      <PieChart>
-        <ChartTooltip content={<ChartTooltipContent nameKey="key" hideLabel />} />
-        <Pie data={rows} dataKey="value" nameKey="key" innerRadius={58} outerRadius={85} paddingAngle={2} stroke="hsl(var(--card))" strokeWidth={2}>
-          <Label
-            content={({ viewBox }) => {
-              const box = viewBox as { cx?: number; cy?: number } | undefined;
-              if (!box || box.cx === undefined || box.cy === undefined) return null;
-              return (
-                <text x={box.cx} y={box.cy} textAnchor="middle" dominantBaseline="middle">
-                  <tspan x={box.cx} y={box.cy - 4} className="fill-foreground text-2xl font-semibold">{centerValue}</tspan>
-                  <tspan x={box.cx} y={box.cy + 18} className="fill-muted-foreground text-xs">{centerLabel}</tspan>
-                </text>
-              );
-            }}
-          />
-        </Pie>
-        <ChartLegend content={<ChartLegendContent nameKey="key" className={legendClass} />} />
-      </PieChart>
-    </ChartContainer>
-  );
-}
-
-function FeatureUsageChart({ data, limit }: { data: FeatureUsage; limit: number }) {
-  const projects = [...data.projects].sort((a, b) => b.total - a.total).slice(0, limit);
-  const ordered = data.modules
-    .map((module, index) => ({ module, index, total: data.totals[index] || 0 }))
-    .sort((a, b) => b.total - a.total);
-  const kept = ordered.slice(0, MAX_SERIES - 1);
-  const rest = ordered.slice(MAX_SERIES - 1);
-  const keys = [
-    ...kept.map((entry) => ({ key: `m${entry.index}`, label: entry.module })),
-    ...(rest.length ? [{ key: 'other', label: 'Other' }] : [])
-  ];
-  const config = seriesConfig(keys);
-  const rows = projects.map((project) => {
-    const row: Record<string, string | number> = { label: project.projectName };
-    kept.forEach((entry) => { row[`m${entry.index}`] = project.counts[entry.index] || 0; });
-    if (rest.length) row.other = rest.reduce((sum, entry) => sum + (project.counts[entry.index] || 0), 0);
-    return row;
-  });
-  return (
-    <ChartContainer config={config} className="aspect-auto w-full" style={{ height: barHeight(rows.length) + 40 }}>
-      <BarChart data={rows} layout="vertical" margin={{ left: 8, right: 24, top: 4, bottom: 4 }}>
-        <CartesianGrid horizontal={false} strokeDasharray="3 3" />
-        <XAxis type="number" hide />
-        <YAxis type="category" dataKey="label" width={150} interval={0} tickLine={false} axisLine={false} tick={<AxisTick />} />
-        <ChartTooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<ChartTooltipContent />} />
-        <ChartLegend verticalAlign="top" content={<ChartLegendContent className={legendClass} />} />
-        {keys.map((entry, index) => (
-          <Bar
-            key={entry.key}
-            dataKey={entry.key}
-            stackId="usage"
-            fill={`var(--color-${entry.key})`}
-            stroke="hsl(var(--card))"
-            strokeWidth={2}
-            radius={index === keys.length - 1 ? [0, 4, 4, 0] : 0}
-            barSize={14}
-          />
-        ))}
-      </BarChart>
-    </ChartContainer>
-  );
-}
-
-function KpiTile({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string | number }) {
-  return (
-    <Card className="bg-card border border-border shadow-sm">
-      <CardContent className="p-4 flex items-center gap-3">
-        <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center shrink-0">
-          <Icon className="w-4 h-4 text-primary-foreground" />
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="text-xl font-semibold text-card-foreground">{value}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+const Notice = ({ text, tone = 'muted' }: { text: string; tone?: 'muted' | 'error' }) => (
+  <Card className="bg-card border border-border shadow-sm">
+    <CardContent className={`p-10 text-center text-sm ${tone === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{text}</CardContent>
+  </Card>
+);
 
 const AdminGraphs = () => {
   const navigate = useNavigate();
@@ -175,6 +50,7 @@ const AdminGraphs = () => {
   useEffect(() => {
     if (customers.length && !customers.some((customer) => customer.id === customerId)) setActiveCustomer(customers[0].id);
   }, [customers, customerId]);
+
   const [rolesProjectId, setRolesProjectId] = useState<number | null>(null);
   const [fieldsProjectId, setFieldsProjectId] = useState<number | null>(null);
   const [execProjectId, setExecProjectId] = useState<number | null>(null);
@@ -202,7 +78,7 @@ const AdminGraphs = () => {
     [projects, isSuperAdmin, customerId]
   );
   const scoped = (projectId: number | null): AdminGraphPayload | null =>
-    base && projectId ? { ...base, filters: { selectedProjectId: projectId } } : null;
+    (base && projectId ? { ...base, filters: { selectedProjectId: projectId } } : null);
 
   const userCount = useAdminGraph<UserCountByProject>('user-count-by-project', base, token);
   const usersByType = useAdminGraph<UsersByType>('users-by-type', base, token);
@@ -214,66 +90,40 @@ const AdminGraphs = () => {
   const lastExecution = useAdminGraph<LastExecution[]>('users-last-execution', scoped(execProjectId), token);
   const featureUsage = useAdminGraph<FeatureUsage>('feature-usage-by-project', base, token);
 
-  const usersByProject = useMemo<BarRow[]>(
-    () => rank((userCount.data?.projects || []).map((row) => ({ label: row._id, value: row.count })), Infinity),
-    [userCount.data]
-  );
-  const usersByProjectTop = useMemo(() => rank(usersByProject, 20), [usersByProject]);
-  const featureProjects = featureUsage.data?.projects?.length || 0;
-  const typeRows = useMemo<SliceRow[]>(
-    () => (usersByType.data?.breakdown || []).map((row) => ({ key: slug(row._id), label: row._id, value: row.count })),
-    [usersByType.data]
-  );
-  const loginUsers = useMemo(
-    () => (lastLogin.data || []).map((user) => ({ label: user.name || user.email, days: daysSince(user.lastLoginAt) })),
-    [lastLogin.data]
-  );
-  const loginRows = useMemo<BarRow[]>(
-    () => loginUsers.filter((user) => user.days !== null).sort((a, b) => a.days - b.days).slice(0, 15).map((user) => ({ label: user.label, value: user.days })),
-    [loginUsers]
-  );
-  const roleRows = useMemo<BarRow[]>(() => (roles.data || []).map((row) => ({ label: row._id, value: row.count })), [roles.data]);
-  const fieldRows = useMemo<BarRow[]>(() => (customFields.data || []).map((row) => ({ label: row._id, value: row.count })), [customFields.data]);
-  const autoDetails = autoLogging.data?.[0]?.details || [];
-  const autoEnabled = autoDetails.filter((project) => project.mode === 'Enabled').length;
-  const autoRows: SliceRow[] = autoDetails.length
-    ? [
-        { key: 'enabled', label: 'Enabled', value: autoEnabled },
-        { key: 'disabled', label: 'Disabled', value: autoDetails.length - autoEnabled }
-      ].filter((row) => row.value > 0)
-    : [];
-  const teamRows = useMemo<SliceRow[]>(() => {
-    const sorted = (teams.data || [])
-      .map((team) => ({ key: `team-${team.teamId}`, label: team._id, value: team.members.length }))
-      .sort((a, b) => b.value - a.value);
-    if (sorted.length <= MAX_SERIES) return sorted;
-    const rest = sorted.slice(MAX_SERIES - 1);
-    return [...sorted.slice(0, MAX_SERIES - 1), { key: 'other', label: 'Other', value: rest.reduce((sum, row) => sum + row.value, 0) }];
-  }, [teams.data]);
-  const execRows = useMemo<BarRow[]>(
-    () => (lastExecution.data || [])
-      .filter((row) => row.createdAt)
-      .map((row) => ({ label: row.createdByName || String(row._id), value: daysSince(row.createdAt) }))
-      .sort((a, b) => a.value - b.value)
-      .slice(0, 15),
-    [lastExecution.data]
-  );
-
-  const ProjectSelect = ({ value, onChange }: { value: number | null; onChange: (id: number) => void }) => (
-    <Select value={value ? String(value) : undefined} onValueChange={(selected) => onChange(Number(selected))}>
-      <SelectTrigger className="h-7 w-[170px] text-xs"><SelectValue placeholder="Select project" /></SelectTrigger>
-      <SelectContent>
-        {projects.map((project) => (
-          <SelectItem key={project.id} value={String(project.id)} className="text-xs">{project.name}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-
   const handleLogout = () => {
     signOut();
     navigate('/login', { replace: true });
   };
+
+  let body: JSX.Element;
+  if (isSuperAdmin && customersQuery.isError) body = <Notice tone="error" text={`Could not load customers: ${customersQuery.error.message}`} />;
+  else if (isSuperAdmin && customersQuery.isLoading) body = <Notice text="Loading customers…" />;
+  else if (isSuperAdmin && customers.length === 0) body = <Notice text="No customers found for this environment." />;
+  else if (projectsQuery.isError) body = <Notice tone="error" text={`Could not load projects: ${projectsQuery.error.message}`} />;
+  else if (projectsQuery.isLoading) body = <Notice text="Loading projects…" />;
+  else if (projects.length === 0) body = <Notice text="This account has no projects yet." />;
+  else {
+    body = (
+      <AdminGraphsGrid
+        projects={projects}
+        userCount={toGraph(userCount)}
+        usersByType={toGraph(usersByType)}
+        lastLogin={toGraph(lastLogin)}
+        lastExecution={toGraph(lastExecution)}
+        roles={toGraph(roles)}
+        customFields={toGraph(customFields)}
+        autoLogging={toGraph(autoLogging)}
+        teams={toGraph(teams)}
+        featureUsage={toGraph(featureUsage)}
+        rolesProjectId={rolesProjectId}
+        fieldsProjectId={fieldsProjectId}
+        execProjectId={execProjectId}
+        onRolesProject={setRolesProjectId}
+        onFieldsProject={setFieldsProjectId}
+        onExecProject={setExecProjectId}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -309,152 +159,7 @@ const AdminGraphs = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-6 space-y-6">
-        {isSuperAdmin && customersQuery.isError ? (
-          <Card className="bg-card border border-border shadow-sm">
-            <CardContent className="p-10 text-center text-sm text-destructive">Could not load customers: {customersQuery.error.message}</CardContent>
-          </Card>
-        ) : isSuperAdmin && customersQuery.isLoading ? (
-          <Card className="bg-card border border-border shadow-sm">
-            <CardContent className="p-10 text-center text-sm text-muted-foreground">Loading customers…</CardContent>
-          </Card>
-        ) : isSuperAdmin && customers.length === 0 ? (
-          <Card className="bg-card border border-border shadow-sm">
-            <CardContent className="p-10 text-center text-sm text-muted-foreground">No customers found for this environment.</CardContent>
-          </Card>
-        ) : projectsQuery.isError ? (
-          <Card className="bg-card border border-border shadow-sm">
-            <CardContent className="p-10 text-center text-sm text-destructive">Could not load projects: {projectsQuery.error.message}</CardContent>
-          </Card>
-        ) : projectsQuery.isLoading ? (
-          <Card className="bg-card border border-border shadow-sm">
-            <CardContent className="p-10 text-center text-sm text-muted-foreground">Loading projects…</CardContent>
-          </Card>
-        ) : projects.length === 0 ? (
-          <Card className="bg-card border border-border shadow-sm">
-            <CardContent className="p-10 text-center text-sm text-muted-foreground">This account has no projects yet.</CardContent>
-          </Card>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <KpiTile icon={FolderKanban} label="Projects" value={userCount.data?.totalProjects ?? projects.length} />
-              <KpiTile icon={Users} label="Active users" value={userCount.data?.totalActiveUsers ?? '–'} />
-              <KpiTile icon={UsersRound} label="Teams" value={teams.data?.length ?? '–'} />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-              <ChartCard
-                title="Users by Project"
-                info="Active users assigned to each project, highest first. The table lists every project."
-                badge={topBadge(usersByProjectTop.length, usersByProject.length)}
-                loading={userCount.isLoading}
-                error={userCount.error?.message}
-                empty={!usersByProject.length}
-                table={{ columns: ['Project', 'Users'], rows: usersByProject.map((row) => [row.label, row.value]) }}
-              >
-                <HorizontalBars data={usersByProjectTop} valueLabel="Users" />
-              </ChartCard>
-
-              <ChartCard
-                title="User Distribution by Type"
-                info="Admin versus non-admin users in this account."
-                loading={usersByType.isLoading}
-                error={usersByType.error?.message}
-                empty={!typeRows.length}
-                table={{ columns: ['User', 'Type'], rows: (usersByType.data?.details || []).map((row) => [row.name, row.type]) }}
-              >
-                <Donut data={typeRows} centerValue={usersByType.data?.totalUsers ?? 0} centerLabel="users" />
-              </ChartCard>
-
-              <ChartCard
-                title="Days Since Last Login"
-                info="Most recently active users, by days since their last login. The table lists every active user."
-                badge={loginRows.length < loginUsers.length ? `Top ${loginRows.length}` : undefined}
-                loading={lastLogin.isLoading}
-                error={lastLogin.error?.message}
-                empty={!loginRows.length}
-                table={{ columns: ['User', 'Days since login'], rows: loginUsers.map((user) => [user.label, user.days ?? 'Never']) }}
-              >
-                <HorizontalBars data={loginRows} valueLabel="Days since login" />
-              </ChartCard>
-
-              <ChartCard
-                title="Days Since Last Execution"
-                info="Users by days since the last execution they ran in the selected project."
-                loading={lastExecution.isLoading}
-                error={lastExecution.error?.message}
-                empty={!execRows.length}
-                controls={<ProjectSelect value={execProjectId} onChange={setExecProjectId} />}
-                table={{ columns: ['User', 'Days since execution'], rows: execRows.map((row) => [row.label, row.value]) }}
-              >
-                <HorizontalBars data={execRows} valueLabel="Days since execution" />
-              </ChartCard>
-
-              <ChartCard
-                title="Roles in Project"
-                info="Users per role in the selected project."
-                loading={roles.isLoading}
-                error={roles.error?.message}
-                empty={!roleRows.length}
-                controls={<ProjectSelect value={rolesProjectId} onChange={setRolesProjectId} />}
-                table={{ columns: ['Role', 'Users', 'Members'], rows: (roles.data || []).map((row) => [row._id, row.count, row.users.join(', ')]) }}
-              >
-                <HorizontalBars data={roleRows} valueLabel="Users" />
-              </ChartCard>
-
-              <ChartCard
-                title="Custom Fields by Module"
-                info="Custom fields configured per module in the selected project."
-                loading={customFields.isLoading}
-                error={customFields.error?.message}
-                empty={!fieldRows.length}
-                controls={<ProjectSelect value={fieldsProjectId} onChange={setFieldsProjectId} />}
-                table={{ columns: ['Module', 'Custom fields'], rows: fieldRows.map((row) => [row.label, row.value]) }}
-              >
-                <HorizontalBars data={fieldRows} valueLabel="Custom fields" />
-              </ChartCard>
-
-              <ChartCard
-                title="Auto-Logging Adoption"
-                info="Projects with automatic defect logging enabled."
-                loading={autoLogging.isLoading}
-                error={autoLogging.error?.message}
-                empty={!autoRows.length}
-                table={{ columns: ['Project', 'Auto-logging'], rows: autoDetails.map((row) => [row.name, row.mode]) }}
-              >
-                <Donut data={autoRows} centerValue={`${autoDetails.length ? Math.round((autoEnabled / autoDetails.length) * 100) : 0}%`} centerLabel="enabled" />
-              </ChartCard>
-
-              <ChartCard
-                title="Team Member Breakdown"
-                info="Active members per team. Teams beyond the first seven are grouped as Other."
-                loading={teams.isLoading}
-                error={teams.error?.message}
-                empty={!teamRows.length}
-                table={{ columns: ['Team', 'Members'], rows: (teams.data || []).map((team) => [team._id, team.members.map((member) => member.name).join(', ')]) }}
-              >
-                <Donut data={teamRows} centerValue={teams.data?.length ?? 0} centerLabel="teams" />
-              </ChartCard>
-
-              <ChartCard
-                title="Feature Usage by Project"
-                info="Items created or run per module, for the projects with the most activity. Modules beyond the top seven are grouped as Other. The table lists every project."
-                badge={topBadge(Math.min(15, featureProjects), featureProjects)}
-                loading={featureUsage.isLoading}
-                error={featureUsage.error?.message}
-                empty={!featureUsage.data?.projects?.length}
-                span2
-                table={{
-                  columns: ['Project', ...(featureUsage.data?.modules || []), 'Total'],
-                  rows: (featureUsage.data?.projects || []).map((project) => [project.projectName, ...project.counts, project.total])
-                }}
-              >
-                {featureUsage.data && <FeatureUsageChart data={featureUsage.data} limit={15} />}
-              </ChartCard>
-            </div>
-          </>
-        )}
-      </main>
+      <main className="max-w-7xl mx-auto p-6 space-y-6">{body}</main>
     </div>
   );
 };
