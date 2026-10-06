@@ -147,7 +147,7 @@ const AdminGraphs = () => {
   const [execProjectId, setExecProjectId] = useState<number | null>(null);
 
   const projectsQuery = useAdminGraph<Project[]>('all-customer-projects', {});
-  const projects = projectsQuery.data || [];
+  const projects = useMemo(() => (projectsQuery.data || []).filter((project) => typeof project.id === 'number'), [projectsQuery.data]);
 
   useEffect(() => {
     const error = projectsQuery.error;
