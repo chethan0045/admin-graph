@@ -12,6 +12,7 @@ export interface CustomerSession {
 export interface AuthState {
   mode: Mode;
   token?: string;
+  demo?: boolean;
   sessions: CustomerSession[];
   activeCustomerId: number | null;
 }

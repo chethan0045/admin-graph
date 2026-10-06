@@ -8,6 +8,7 @@ import { BarChart3, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ApiError, CustomerSession, Mode, customerName, getOwnCustomer, login, superAdminLogin, verifyEmail, verifySuperAdminEmail } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { DEMO_SUPER_ADMIN, DEMO_TOKEN } from '@/data/demoGraphs';
 
 const describe = (err: unknown) => (err instanceof ApiError || err instanceof Error ? err.message : 'Request failed');
 
@@ -42,6 +43,8 @@ const Login = () => {
         const response = await verifyEmail(email.trim());
         setLoginToken(response.token);
         setCompanies(response.companies || []);
+      } else if (email.trim().toLowerCase() === DEMO_SUPER_ADMIN.email) {
+        setLoginToken(DEMO_TOKEN);
       } else {
         const response = await verifySuperAdminEmail(email.trim());
         setLoginToken(response.token);
@@ -72,6 +75,11 @@ const Login = () => {
   };
 
   const signInAsSuperAdmin = async () => {
+    if (loginToken === DEMO_TOKEN) {
+      if (password !== DEMO_SUPER_ADMIN.password) throw new Error('Invalid password');
+      signIn({ mode: 'super-admin', token: DEMO_TOKEN, demo: true, sessions: [], activeCustomerId: null });
+      return;
+    }
     const response = await superAdminLogin(email.trim(), password, loginToken);
     signIn({ mode: 'super-admin', token: response.accessToken, sessions: [], activeCustomerId: null });
   };

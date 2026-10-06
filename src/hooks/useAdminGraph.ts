@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { adminGraph } from '@/services/api';
+import { DEMO_TOKEN, demoAdminGraph } from '@/data/demoGraphs';
 
 export type AdminGraph =
   | 'all-customer-projects'
@@ -29,7 +30,9 @@ export interface AdminGraphPayload {
 export function useAdminGraph<T>(graph: AdminGraph, payload: AdminGraphPayload | null, token: string | null) {
   return useQuery<T>({
     queryKey: ['admin-graph', graph, payload, token],
-    queryFn: () => adminGraph<T>(graph, payload as AdminGraphPayload, token as string),
+    queryFn: () => (token === DEMO_TOKEN
+      ? Promise.resolve(demoAdminGraph(graph, payload as AdminGraphPayload) as T)
+      : adminGraph<T>(graph, payload as AdminGraphPayload, token as string)),
     enabled: !!payload && !!token
   });
 }

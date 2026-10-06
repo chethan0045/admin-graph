@@ -25,6 +25,17 @@ The dev server proxies `/pm` and `/dashboard` to the host in `.env`
 remote CORS allow-list does not matter during development. Change
 `VITE_API_TARGET` to point at another environment or at local services.
 
+## Dummy super-admin login
+
+Until the dashboard service accepts super-admin tokens, the **Super admin** tab
+accepts a dummy account that never calls the backend:
+
+- email `admin@simplify3x.com`, password `12345678`
+
+It shows three dummy customers and renders every graph from the generator in
+`src/data/demoGraphs.ts`, with a "Dummy data" badge. Regular SimplifyQA user
+sign-in is unaffected and always shows real data.
+
 ## Super-admin mode on the dashboard service
 
 The dashboard service must (1) accept a token whose `userType` is

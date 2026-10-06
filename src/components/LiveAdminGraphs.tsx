@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart3, Building2, LogIn } from 'lucide-react';
 import { ApiError, customerName, listCustomers } from '@/services/api';
@@ -11,6 +12,7 @@ import { AdminGraphsGrid } from '@/components/AdminGraphsGrid';
 import { AdminGraphPayload, useAdminGraph } from '@/hooks/useAdminGraph';
 import type { GraphRequest } from '@/graphs/types';
 import type { Project } from '@/types/adminGraphs';
+import { DEMO_CUSTOMERS } from '@/data/demoGraphs';
 
 export const apiHost = (() => {
   try {
@@ -46,16 +48,19 @@ function SignedInGraphs() {
   const location = useLocation();
   const { auth, signOut, setActiveCustomer } = useAuth();
   const isSuperAdmin = auth?.mode === 'super-admin';
+  const isDemo = !!auth?.demo;
   const customersQuery = useQuery({
     queryKey: ['lm-customers', auth?.token],
     queryFn: () => listCustomers(auth?.token as string),
-    enabled: isSuperAdmin && !!auth?.token
+    enabled: isSuperAdmin && !isDemo && !!auth?.token
   });
   const customers = useMemo(
-    () => (isSuperAdmin
+    () => (isDemo
+      ? DEMO_CUSTOMERS.map((customer) => ({ id: customer.id, name: customer.name }))
+      : isSuperAdmin
       ? (customersQuery.data || []).map((customer) => ({ id: Number(customer.id), name: customerName(customer) })).filter((customer) => Number.isFinite(customer.id))
       : (auth?.sessions || []).map((session) => ({ id: session.customerId, name: session.name }))),
-    [isSuperAdmin, customersQuery.data, auth?.sessions]
+    [isSuperAdmin, isDemo, customersQuery.data, auth?.sessions]
   );
   const customerId = auth?.activeCustomerId ?? null;
   const token = isSuperAdmin ? auth?.token ?? null : auth?.sessions.find((session) => session.customerId === customerId)?.token ?? null;
@@ -104,7 +109,10 @@ function SignedInGraphs() {
             <BarChart3 className="w-5 h-5 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Admin Graphs</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-foreground">Admin Graphs</h1>
+              {isDemo && <Badge variant="secondary">Dummy data</Badge>}
+            </div>
             <p className="text-sm text-muted-foreground">Administration metrics for the selected customer{apiHost ? ` on ${apiHost}` : ''}</p>
           </div>
         </div>
