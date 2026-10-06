@@ -16,7 +16,7 @@ const Login = () => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = params.get('next');
-  const target = next && next.startsWith('/') ? next : '/';
+  const target = next && next.startsWith('/') ? next : '/super-admin/admin-graphs';
   const { signIn } = useAuth();
   const [mode, setMode] = useState<Mode>('user');
   const [step, setStep] = useState<'email' | 'password'>('email');
@@ -71,17 +71,17 @@ const Login = () => {
       }
     }
     if (!sessions.length) throw new Error(failures[0] || 'Sign in failed');
-    signIn({ mode: 'user', sessions, activeCustomerId: sessions[0].customerId });
+    signIn({ mode: 'user', email: email.trim(), sessions, activeCustomerId: sessions[0].customerId });
   };
 
   const signInAsSuperAdmin = async () => {
     if (loginToken === DEMO_TOKEN) {
       if (password !== DEMO_SUPER_ADMIN.password) throw new Error('Invalid password');
-      signIn({ mode: 'super-admin', token: DEMO_TOKEN, demo: true, sessions: [], activeCustomerId: null });
+      signIn({ mode: 'super-admin', email: email.trim(), token: DEMO_TOKEN, demo: true, sessions: [], activeCustomerId: null });
       return;
     }
     const response = await superAdminLogin(email.trim(), password, loginToken);
-    signIn({ mode: 'super-admin', token: response.accessToken, sessions: [], activeCustomerId: null });
+    signIn({ mode: 'super-admin', email: email.trim(), token: response.accessToken, sessions: [], activeCustomerId: null });
   };
 
   const submitPassword = async (event: FormEvent) => {

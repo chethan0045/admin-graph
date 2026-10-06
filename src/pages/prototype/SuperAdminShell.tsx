@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { BarChart3, ChevronDown, Home as HomeIcon, Menu, Package, Users, X } from 'lucide-react';
+import { BarChart3, Home as HomeIcon, LogOut, Menu, Package, Users, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 import Home from './Home';
 import Graphs from './Graphs';
 import Placeholder from './Placeholder';
 
-export const PROTOTYPE_BASE = '/prototype';
+export const SHELL_BASE = '/super-admin';
 
 const NAVIGATION = [
   { name: 'Dashboard', path: '', icon: HomeIcon, exact: true },
@@ -20,7 +21,10 @@ const SuperAdminShell = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const relative = location.pathname.slice(PROTOTYPE_BASE.length) || '/';
+  const { auth, signOut } = useAuth();
+  const initial = (auth?.email || 'S').charAt(0).toUpperCase();
+  const handleLogout = () => { signOut(); navigate(SHELL_BASE); };
+  const relative = location.pathname.slice(SHELL_BASE.length) || '/';
   const isCurrent = (item: typeof NAVIGATION[number]) => (item.exact ? relative === '/' : relative.startsWith(item.path));
 
   return (
@@ -41,14 +45,20 @@ const SuperAdminShell = () => {
               </div>
             </div>
           </div>
-          <button type="button" className="flex items-center gap-3 rounded-lg border border-primary-foreground/30 bg-primary-foreground/10 px-3 py-2 text-left hover:bg-primary-foreground/20">
-            <div className="w-8 h-8 rounded-full bg-primary-foreground/25 flex items-center justify-center text-sm font-semibold">S</div>
-            <div className="hidden sm:block">
-              <p className="text-sm font-semibold leading-tight">User</p>
-              <p className="text-xs text-primary-foreground/80">sqaadmin@yopmail.com</p>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 rounded-lg border border-primary-foreground/30 bg-primary-foreground/10 px-3 py-2">
+              <div className="w-8 h-8 rounded-full bg-primary-foreground/25 flex items-center justify-center text-sm font-semibold">{initial}</div>
+              <div className="hidden sm:block">
+                <p className="text-sm font-semibold leading-tight">{auth ? (auth.mode === 'super-admin' ? 'Super admin' : 'User') : 'Not signed in'}</p>
+                <p className="text-xs text-primary-foreground/80">{auth?.email || 'Sign in from Admin Graphs'}</p>
+              </div>
             </div>
-            <ChevronDown className="w-4 h-4 opacity-80" />
-          </button>
+            {auth && (
+              <Button variant="ghost" size="sm" className="text-primary-foreground hover:bg-primary-foreground/20" onClick={handleLogout}>
+                <LogOut className="w-4 h-4 mr-2" />Logout
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -62,7 +72,7 @@ const SuperAdminShell = () => {
                   key={item.name}
                   variant={current ? 'default' : 'ghost'}
                   className={cn('w-full justify-start gap-3 px-4 py-3 text-sm lg:text-base font-medium', current ? 'bg-primary text-primary-foreground' : 'text-card-foreground hover:bg-muted')}
-                  onClick={() => { navigate(`${PROTOTYPE_BASE}${item.path}`); setSidebarOpen(false); }}
+                  onClick={() => { navigate(`${SHELL_BASE}${item.path}`); setSidebarOpen(false); }}
                 >
                   <item.icon className={cn('w-4 h-4 lg:w-5 lg:h-5', current ? 'text-primary-foreground' : 'text-muted-foreground')} />
                   {item.name}

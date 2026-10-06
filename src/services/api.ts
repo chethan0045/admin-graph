@@ -11,6 +11,7 @@ export interface CustomerSession {
 
 export interface AuthState {
   mode: Mode;
+  email?: string;
   token?: string;
   demo?: boolean;
   sessions: CustomerSession[];

@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Activity, BarChart3, ChevronDown, ExternalLink, Globe, Home as HomeIcon, Package, Settings, Users } from 'lucide-react';
-import { PROTOTYPE_BASE } from './SuperAdminShell';
+import { SHELL_BASE } from './SuperAdminShell';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -64,7 +64,7 @@ const Home = () => {
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Button onClick={() => navigate(`${PROTOTYPE_BASE}/customers`)} className="h-16 justify-start p-4">
+                <Button onClick={() => navigate(`${SHELL_BASE}/customers`)} className="h-16 justify-start p-4">
                   <div className="flex items-center gap-3">
                     <Users className="w-6 h-6" />
                     <div className="text-left">
@@ -73,7 +73,7 @@ const Home = () => {
                     </div>
                   </div>
                 </Button>
-                <Button onClick={() => navigate(`${PROTOTYPE_BASE}/package-builder`)} variant="outline" className="h-16 justify-start p-4">
+                <Button onClick={() => navigate(`${SHELL_BASE}/package-builder`)} variant="outline" className="h-16 justify-start p-4">
                   <div className="flex items-center gap-3">
                     <Package className="w-6 h-6" />
                     <div className="text-left">
@@ -82,7 +82,7 @@ const Home = () => {
                     </div>
                   </div>
                 </Button>
-                <Button onClick={() => navigate(`${PROTOTYPE_BASE}/admin-graphs`)} variant="outline" className="h-16 justify-start p-4 sm:col-span-2">
+                <Button onClick={() => navigate(`${SHELL_BASE}/admin-graphs`)} variant="outline" className="h-16 justify-start p-4 sm:col-span-2">
                   <div className="flex items-center gap-3">
                     <BarChart3 className="w-6 h-6" />
                     <div className="text-left">

@@ -18,7 +18,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:4201 and sign in with a QA SimplifyQA user.
+Open http://localhost:4201 — it lands in the License Management shell. Sign in from Admin Graphs with a QA SimplifyQA user, or with the dummy super-admin account below.
 
 The dev server proxies `/pm` and `/dashboard` to the host in `.env`
 (`VITE_API_TARGET`, QA by default) and strips the browser origin, so the
@@ -49,9 +49,8 @@ sign-in shows "Not authorised" for the graphs.
 
 ## License Management shell clone
 
-`/prototype` is a clone of the License Management (super-admin) shell: header,
-sidebar and welcome page. Its **Admin Graphs** section is the same live page as
-`/`, so it shows actual data from the configured environment for the selected
+`/super-admin` is a clone of the License Management (super-admin) shell: header,
+sidebar and welcome page. Its **Admin Graphs** section shows actual data from the configured environment for the selected
 customer, and asks you to sign in when there is no session. Customer
 Management and Package Builder are placeholders.
 
